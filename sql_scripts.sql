@@ -67,8 +67,8 @@ CREATE TABLE promotion_detail (
 );
 
 CREATE TABLE cost_center (
-    cost_center_code TEXT,
-    cost_center_name TEXT,
+    cost_center_code TEXT PRIMARY KEY,
+    cost_center_name TEXT UNIQUE,
     branch_key INT REFERENCES branch (branch_key),
     product_category_key INT REFERENCES product_category (product_category_key)
 );
