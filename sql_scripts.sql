@@ -1,3 +1,4 @@
+-- Các bảng có mối quan hệ trực tiếp sản phẩm
 CREATE TABLE product_category (
     product_category_key INTEGER PRIMARY KEY,
     ctg_1 TEXT,
@@ -6,10 +7,11 @@ CREATE TABLE product_category (
 
 CREATE TABLE product (
 	product_code TEXT PRIMARY KEY,
-	product_name TEXT,
+	product_name TEXT NOT NULL,
 	product_category_key INTEGER REFERENCES product_category(product_category_key)
 );
 
+-- Các bảng có mối quan hệ với khách hàng
 CREATE TABLE customer_system (
 	system_key INTEGER PRIMARY KEY,
 	system_name TEXT UNIQUE
@@ -30,7 +32,7 @@ CREATE TABLE customer(
 	customer_name TEXT NOT NULL,
 	branch_key INTEGER REFERENCES branch(branch_key),
 	warehouse_key INTEGER REFERENCES warehouse(warehouse_key),
-    product_category_key INTEGER REFERENCES product_category(product_category_keyj)
+    product_category_key INTEGER REFERENCES product_category(product_category_key)
 );
 
 CREATE TABLE delivery_location (
@@ -43,6 +45,7 @@ CREATE TABLE delivery_location (
     PRIMARY KEY (location_code, location_address)
 );
 
+-- Các bảng liên quan tới chương trình khuyến mãi, giá, giảm giá
 CREATE TABLE promo_type (
 	promo_type_key INTEGER PRIMARY KEY,
 	promo_type_name TEXT UNIQUE
@@ -51,8 +54,7 @@ CREATE TABLE promo_type (
 CREATE TABLE base_price (
 	barcode TEXT,
 	product_code TEXT REFERENCES product(product_code),
-	base_price NUMERIC,
-	system_key INTEGER REFERENCES customer_system(system_key)
+	base_price NUMERIC
 );
 
 CREATE TABLE promotion_detail (
@@ -71,4 +73,45 @@ CREATE TABLE cost_center (
     cost_center_name TEXT UNIQUE,
     branch_key INT REFERENCES branch (branch_key),
     product_category_key INT REFERENCES product_category (product_category_key)
+);
+
+CREATE TABLE stg_transactions (
+    order_no TEXT,
+    order_code TEXT,
+    provider_code TEXT,
+    location_code TEXT,
+    location_name TEXT,
+    location_address TEXT,
+    buyer TEXT,
+    product_order TEXT,
+    product_code TEXT,
+    product_name TEX,
+    barcode TEXT,
+    winmart_price NUMERIC,
+    product_quantity NUMERIC,
+    order_date DATE,
+    demand_date DATE
+);
+
+CREATE INDEX idx_promo_date ON promotion_detail(start_date, end_date);
+CREATE INDEX idx_loc_stg ON stg_transactions(location_code);
+CREATE INDEX idx_barcode_stg ON stg_transactions(barcode);
+CREATE INDEX idx_date_stg ON stg_transactions(order_date);
+
+CREATE TABLE transactions (
+    order_no TEXT,
+    order_code TEXT,
+    provider_code TEXT,
+    location_code TEXT REFERENCES delivery_location(location_code),
+    location_name TEXT,
+    location_address TEXT,
+    buyer TEXT,
+    product_order TEXT,
+    barcode TEXT REFERENCES base_price(barcode),
+    product_code TEXT,
+    product_name TEXT,
+    winmart_price NUMERIC,
+    product_quantity NUMERIC,
+    order_date DATE,
+    demand_date DATE
 );
