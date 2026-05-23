@@ -115,3 +115,64 @@ CREATE TABLE transactions (
     order_date DATE,
     demand_date DATE
 );
+
+-- Tạo view
+
+-- View customers: Bao gồm tất cả những thông tin liên quan đến khách hàng
+-- Bảng này bao gồm các thông tin về mã điểm giao, tên hệ thống (Win/Win+), mã kho, chi nhánh
+-- Cột branch_name sẽ phục vụ việc lựa chọn Cost Center
+CREATE VIEW view_customer AS
+SELECT
+    location_code,
+    location_address,
+    customer_name,
+    warehouse_code,
+    branch_name,
+    system_name
+FROM delivery_location
+JOIN customer_system USING (system_key)
+JOIN customer USING (customer_code)
+JOIN warehouse USING (warehouse_key)
+JOIN branch USING (branch_key);
+
+-- View product: Bao gồm những thông tin liên quan đến sản phẩm
+-- Bảng này gồm các thông tin về mã barcode, mã sản phẩm nào ứng với barcode đó, phân nhóm của sản phẩm đó
+-- Cột product_category sẽ phục vụ việc lựa chọn Cost Center
+CREATE VIEW view_promotion AS
+WITH promotion_r AS (
+    SELECT p.post_name,
+           p.start_date,
+           p.end_date,
+           b.barcode,
+           pr.product_code,
+           pr.product_name,
+           b.base_price,
+           p.discount_percentage,
+           b.base_price * discount_percentage AS discounted_price,
+           promo_type_name,
+           cs.system_name,
+           ctg_1, -- Phân biệt cost center
+           ctg_2  -- Phân biệt mã khách hàng
+    FROM promotion_detail p
+            JOIN base_price b USING (barcode)
+            JOIN product pr USING (product_code)
+            JOIN product_category pc USING (product_category_key)
+            JOIN customer_system cs USING (system_key)
+            JOIN promo_type USING (promo_type_key)
+)
+SELECT
+    post_name,
+    start_date,
+    end_date,
+    barcode,
+    product_code,
+    product_name,
+    base_price,
+    discount_percentage,
+    discounted_price,
+    COALESCE(discounted_price, base_price) AS daesang_price, -- Đây là giá cuối cùng để so sánh với Winmart
+    promo_type_name,
+    system_name,
+    ctg_1, -- Phân biệt cost center
+    ctg_2  -- Phân biệt mã khách hàng
+FROM promotion_r;
