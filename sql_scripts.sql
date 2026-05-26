@@ -1,3 +1,5 @@
+PRAGMA foreign_keys = ON;
+
 -- Các bảng có mối quan hệ trực tiếp sản phẩm
 CREATE TABLE product_category (
     product_category_key INTEGER PRIMARY KEY,
@@ -36,13 +38,17 @@ CREATE TABLE customer(
 );
 
 CREATE TABLE delivery_location (
-	location_code TEXT NOT NULL,
-	location_address TEXT,
-	system_key INTEGER REFERENCES customer_system(system_key),
-	customer_code TEXT REFERENCES customer(customer_code),
+    location_code TEXT PRIMARY KEY,
+    location_name TEXT,
+    location_address TEXT,
+    system_key INTEGER REFERENCES customer_system(system_key)
+);
 
-    -- Một location_code có thể gồm nhiều customer_code, mỗi cặp trên không thể trùng nhau
-    PRIMARY KEY (location_code, location_address)
+-- Do 1 mã điểm giao có thể gồm 2 code khách hàng Daesang - Đức Việt
+CREATE TABLE location_customer (
+	location_code TEXT REFERENCES delivery_location(location_code),
+	customer_code TEXT REFERENCES customer(customer_code),
+    UNIQUE (location_code, customer_code)
 );
 
 -- Các bảng liên quan tới chương trình khuyến mãi, giá, giảm giá
@@ -52,7 +58,7 @@ CREATE TABLE promo_type (
 );
 
 CREATE TABLE base_price (
-	barcode TEXT,
+	barcode TEXT PRIMARY KEY,
 	product_code TEXT REFERENCES product(product_code),
 	base_price NUMERIC
 );
@@ -85,7 +91,7 @@ CREATE TABLE stg_transactions (
     buyer TEXT,
     product_order TEXT,
     product_code TEXT,
-    product_name TEX,
+    product_name TEXT,
     barcode TEXT,
     winmart_price NUMERIC,
     product_quantity NUMERIC,
@@ -123,17 +129,23 @@ CREATE TABLE transactions (
 -- Cột branch_name sẽ phục vụ việc lựa chọn Cost Center
 CREATE VIEW view_customer AS
 SELECT
-    location_code,
-    location_address,
-    customer_name,
-    warehouse_code,
-    branch_name,
-    system_name
-FROM delivery_location
-JOIN customer_system USING (system_key)
-JOIN customer USING (customer_code)
-JOIN warehouse USING (warehouse_key)
-JOIN branch USING (branch_key);
+    dl.location_code,
+    cs.system_name,
+    dl.location_name,
+    dl.location_address,
+    c.customer_code,
+    c.customer_name,
+    w.warehouse_code,
+    b.branch_name,
+    p.ctg_1,
+    p.ctg_2
+FROM delivery_location dl
+JOIN location_customer lc ON dl.location_code = lc.location_code
+JOIN customer c ON lc.customer_code = c.customer_code
+JOIN branch b ON c.branch_key = b.branch_key
+JOIN product_category p ON c.product_category_key = p.product_category_key
+JOIN customer_system cs on dl.system_key = cs.system_key
+JOIN warehouse w on c.warehouse_key = w.warehouse_key;
 
 -- View product: Bao gồm những thông tin liên quan đến sản phẩm
 -- Bảng này gồm các thông tin về mã barcode, mã sản phẩm nào ứng với barcode đó, phân nhóm của sản phẩm đó
@@ -148,7 +160,7 @@ WITH promotion_r AS (
            pr.product_name,
            b.base_price,
            p.discount_percentage,
-           b.base_price * discount_percentage AS discounted_price,
+           b.base_price * discount_percentage AS discount_amount,
            promo_type_name,
            cs.system_name,
            ctg_1, -- Phân biệt cost center
@@ -169,8 +181,8 @@ SELECT
     product_name,
     base_price,
     discount_percentage,
-    discounted_price,
-    COALESCE(discounted_price, base_price) AS daesang_price, -- Đây là giá cuối cùng để so sánh với Winmart
+    discount_amount,
+    COALESCE(base_price - discount_amount, base_price) AS daesang_price, -- Đây là giá cuối cùng để so sánh với Winmart
     promo_type_name,
     system_name,
     ctg_1, -- Phân biệt cost center
@@ -184,7 +196,8 @@ SELECT DISTINCT
     product_name
 FROM stg_transactions stg
     LEFT JOIN base_price bp USING (barcode)
-    WHERE stg.barcode IS NULL;
+WHERE bp.barcode IS NULL
+AND stg.barcode IS NOT NULL;
 
 -- Tạo view báo cáo những mã điểm giao chưa map với mã khách hàng
 CREATE VIEW missing_location_code AS
@@ -194,4 +207,5 @@ SELECT DISTINCT
     stg.location_address
 FROM stg_transactions stg
     LEFT JOIN delivery_location dl USING(location_code)
-WHERE dl.customer_code IS NULL;
+WHERE dl.location_code IS NULL
+AND stg.location_code IS NOT NULL;
