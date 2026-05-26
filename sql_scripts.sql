@@ -176,3 +176,22 @@ SELECT
     ctg_1, -- Phân biệt cost center
     ctg_2  -- Phân biệt mã khách hàng
 FROM promotion_r;
+
+-- Tạo view báo cáo những barcode chưa map với sản phẩm
+CREATE VIEW missing_barcode AS
+SELECT DISTINCT
+    barcode,
+    product_name
+FROM stg_transactions stg
+    LEFT JOIN base_price bp USING (barcode)
+    WHERE stg.barcode IS NULL;
+
+-- Tạo view báo cáo những mã điểm giao chưa map với mã khách hàng
+CREATE VIEW missing_location_code AS
+SELECT DISTINCT
+    stg.location_code,
+    stg.location_name,
+    stg.location_address
+FROM stg_transactions stg
+    LEFT JOIN delivery_location dl USING(location_code)
+WHERE dl.customer_code IS NULL;
