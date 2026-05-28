@@ -60,7 +60,7 @@ CREATE TABLE promo_type (
 CREATE TABLE base_price (
 	barcode TEXT PRIMARY KEY,
 	product_code TEXT REFERENCES product(product_code),
-	base_price NUMERIC
+	base_price NUMERIC NOT NULL
 );
 
 CREATE TABLE promotion_detail (
@@ -90,9 +90,8 @@ CREATE TABLE stg_transactions (
     location_address TEXT,
     buyer TEXT,
     product_order TEXT,
-    product_code TEXT,
-    product_name TEXT,
     barcode TEXT,
+    product_name TEXT,
     winmart_price NUMERIC,
     product_quantity NUMERIC,
     order_date DATE,
@@ -114,7 +113,6 @@ CREATE TABLE transactions (
     buyer TEXT,
     product_order TEXT,
     barcode TEXT REFERENCES base_price(barcode),
-    product_code TEXT,
     product_name TEXT,
     winmart_price NUMERIC,
     product_quantity NUMERIC,
@@ -181,7 +179,7 @@ SELECT
     product_name,
     base_price,
     discount_percentage,
-    discount_amount,
+    discount_amount
     COALESCE(base_price - discount_amount, base_price) AS daesang_price, -- Đây là giá cuối cùng để so sánh với Winmart
     promo_type_name,
     system_name,

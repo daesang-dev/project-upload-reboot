@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="DataSourcePerFileMappings">
+    <file url="file://$PROJECT_DIR$/sql/exec/staging_to_main.sql" value="cd784efb-a36b-4936-8d6c-cc1969266e3d" />
+  </component>
+</project>
