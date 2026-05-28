@@ -70,7 +70,7 @@ CREATE TABLE promotion_detail (
 	end_date DATE NOT NULL,
     discount_percentage NUMERIC,
     system_key INTEGER REFERENCES customer_system(system_key),
-	promo_type_key INTEGER REFERENCES promo_type(promo_type_key),
+	promo_type_key INTEGER REFERENCES promotion_type(promo_type_key),
     promo_product_code TEXT REFERENCES product(product_code),
 	barcode TEXT NOT NULL REFERENCES base_price(barcode)
 );

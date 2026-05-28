@@ -70,7 +70,6 @@ SELECT
 FROM temp
 ;
 
-
 -- Tạo view báo cáo những barcode chưa map với sản phẩm
 CREATE VIEW missing_barcode AS
 SELECT DISTINCT
@@ -95,7 +94,7 @@ WHERE dl.location_code IS NULL
 
 
 -- Tạo view data sau khi enrich (chưa thêm sản phẩm khuyến mãi)
-CREATE VIEW data_enrich AS
+CREATE VIEW view_data_enrich AS
 WITH temp AS (
     SELECT
         t.order_index,
@@ -119,6 +118,9 @@ WITH temp AS (
         t.product_name,
         t.winmart_price,
         t.product_quantity,
+        pd.promo_product_code,
+        p2.product_name AS promo_product_name,
+        pt.promo_type_name,
         t.order_date,
         cost_center_code,
         cost_center_name
@@ -148,6 +150,10 @@ WITH temp AS (
             AND dl.system_key = pd.system_key
             AND t.order_date BETWEEN pd.start_date AND pd.end_date
 
+        LEFT JOIN product p2 ON pd.promo_product_code = p2.product_code
+
+        LEFT JOIN promotion_type pt ON pd.promo_type_key = pt.promo_type_key
+
         -- Bước 4: JOIN cost_center dựa vào branch_key và product_category_key để xác định cost_center_code
         LEFT JOIN cost_center cc
             ON b.branch_key = cc.branch_key
@@ -169,13 +175,144 @@ WITH temp AS (
         barcode,
         product_code,
         product_name,
-        winmart_price,
         product_quantity,
+        promo_product_code,
+        promo_product_name,
+        promo_type_name,
         order_date,
         base_price,
         discount_percentage,
         daesang_price,
+        winmart_price,
+        ABS(daesang_price - winmart_price) AS price_diff,
         SUM(product_quantity * daesang_price) OVER(PARTITION BY order_code) AS total_order_value,
         cost_center_code,
         cost_center_name
 FROM temp;
+
+
+CREATE VIEW failed_data_moq AS
+WITH failed_moq AS (
+   SELECT
+       *
+   FROM view_data_enrich
+   WHERE total_order_value < 500000
+)
+SELECT * FROM failed_moq;
+
+
+CREATE VIEW failed_data_price AS
+WITH failed_price AS (
+    SELECT
+        *
+    FROM view_data_enrich
+    WHERE price_diff > 2
+)
+SELECT * FROM failed_price;
+
+
+CREATE VIEW view_data_merge AS
+WITH sales AS (
+    SELECT
+        order_index,
+        order_code,
+        provider_code,
+        location_code,
+        location_name,
+        location_address,
+        customer_code,
+        customer_name,
+        branch_name,
+        warehouse_code,
+        buyer,
+        CAST(product_order AS INTEGER) AS product_order,
+        barcode,
+        'S' AS sell_type_name,
+        product_code,
+        product_name,
+        product_quantity,
+        promo_product_code,
+        promo_product_name,
+        promo_type_name,
+        NULL AS source_product_code,
+        order_date,
+        base_price,
+        discount_percentage,
+        daesang_price,
+        winmart_price,
+        price_diff,
+        total_order_value,
+        cost_center_code,
+        cost_center_name
+    FROM view_data_enrich
+    WHERE total_order_value > 500000
+      AND price_diff <= 2
+),
+promotions AS (
+    SELECT
+         order_index,
+         order_code,
+         provider_code,
+         location_code,
+         location_name,
+         location_address,
+         customer_code,
+         customer_name,
+         branch_name,
+         warehouse_code,
+         buyer,
+         product_order, -- Cột này tự động kế thừa kiểu INTEGER từ bảng sales
+         NULL AS barcode,
+         'P' AS sell_type_name,
+         promo_product_code AS product_code,
+         promo_product_name AS product_name,
+         CASE
+             WHEN promo_type_name = 'Mua 1 tặng 1' THEN product_quantity
+             WHEN promo_type_name = 'Mua 2 tặng 1' THEN CAST(ROUND(product_quantity / 2.0) AS INT)
+             ELSE NULL
+             END AS product_quantity,
+         promo_product_code,
+         promo_product_name,
+         promo_type_name,
+         product_code AS source_product_code,
+         order_date,
+         NULL AS base_price,
+         NULL AS discount_percentage,
+         NULL AS daesang_price,
+         NULL AS winmart_price,
+         NULL AS price_diff,
+         total_order_value,
+         cost_center_code,
+         cost_center_name
+     FROM sales
+     WHERE promo_product_code IS NOT NULL
+ ),
+ merged AS (
+     SELECT
+         order_index, order_code, provider_code, location_code, location_name, location_address, customer_code, customer_name, branch_name, warehouse_code, buyer, product_order, barcode, sell_type_name, product_code, product_name, product_quantity, promo_product_code, promo_product_name,
+         promo_type_name, source_product_code, order_date, base_price, discount_percentage, daesang_price, winmart_price,
+         price_diff, total_order_value, cost_center_code, cost_center_name
+     FROM sales
+
+     UNION ALL
+
+     SELECT
+         order_index, order_code, provider_code, location_code, location_name, location_address, customer_code, customer_name, branch_name, warehouse_code, buyer, product_order, barcode, sell_type_name, product_code, product_name, product_quantity,
+         NULL AS promo_product_code,
+         NULL AS promo_product_name,
+         NULL AS promo_type_name,
+         source_product_code,
+         order_date, base_price, discount_percentage, daesang_price, winmart_price,
+         price_diff, total_order_value, cost_center_code, cost_center_name
+     FROM promotions
+ ),
+result AS (
+    SELECT * FROM merged
+    ORDER BY order_code, product_order, sell_type_name DESC, order_index
+)
+SELECT
+    dense_rank() over (ORDER BY order_code) AS head,
+    row_number() over (PARTITION BY order_code) AS line,
+    *
+FROM result
+LIMIT -1;

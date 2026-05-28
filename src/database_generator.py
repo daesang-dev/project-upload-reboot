@@ -47,6 +47,8 @@ class DatabaseHandler :
 
         combined_df = pd.concat(dfs, ignore_index=True)
 
+        combined_df = combined_df.dropna(subset=["order_code"])
+
         dtype_map = {k: v["dtype"] for k, v in config.items() if v.get("use") and "dtype" in v}
 
         for col, dtype in dtype_map.items():
