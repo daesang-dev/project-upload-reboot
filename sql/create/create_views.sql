@@ -71,7 +71,7 @@ FROM temp
 ;
 
 -- Tạo view báo cáo những barcode chưa map với sản phẩm
-CREATE VIEW missing_barcode AS
+CREATE VIEW view_missing_barcode AS
 SELECT DISTINCT
     barcode,
     product_name
@@ -82,7 +82,7 @@ WHERE bp.barcode IS NULL
 
 
 -- Tạo view báo cáo những mã điểm giao chưa map với mã khách hàng
-CREATE VIEW missing_location_code AS
+CREATE VIEW view_missing_location_code AS
 SELECT DISTINCT
     stg.location_code,
     stg.location_name,
@@ -111,7 +111,7 @@ WITH temp AS (
         bp.product_code,
         bp.base_price,
         pd.discount_percentage,
-        bp.base_price - bp.base_price * coalesce(pd.discount_percentage, 0) AS daesang_price,
+        ROUND(bp.base_price - bp.base_price * coalesce(pd.discount_percentage, 0)) AS daesang_price,
         pb_cust.product_brand_name AS customer_brand_name, -- Nhóm sản phẩm của Khách hàng
         t.buyer,
         t.product_order,
@@ -185,23 +185,12 @@ WITH temp AS (
         daesang_price,
         winmart_price,
         ABS(daesang_price - winmart_price) AS price_diff,
-        SUM(product_quantity * daesang_price) OVER(PARTITION BY order_code) AS total_order_value,
         cost_center_code,
         cost_center_name
 FROM temp;
 
 
-CREATE VIEW failed_data_moq AS
-WITH failed_moq AS (
-   SELECT
-       *
-   FROM view_data_enrich
-   WHERE total_order_value < 500000
-)
-SELECT * FROM failed_moq;
-
-
-CREATE VIEW failed_data_price AS
+CREATE VIEW view_failed_price AS
 WITH failed_price AS (
     SELECT
         *
@@ -211,8 +200,19 @@ WITH failed_price AS (
 SELECT * FROM failed_price;
 
 
-CREATE VIEW view_data_merge AS
-WITH sales AS (
+CREATE VIEW view_failed_moq AS
+WITH temp AS (
+    SELECT
+        *,
+        SUM(product_quantity * daesang_price) OVER(PARTITION BY order_code) AS total_order_value
+    FROM view_failed_price
+)
+SELECT * FROM temp WHERE total_order_value < 500000;
+
+
+-- View kết quả: Loại bỏ các đơn hàng có tổng giá trị < 500.000vnđ và hiệu số giữa giá winmart và daesang > 2vnđ
+CREATE VIEW view_data_result AS
+WITH filter_price AS (
     SELECT
         order_index,
         order_code,
@@ -241,13 +241,20 @@ WITH sales AS (
         daesang_price,
         winmart_price,
         price_diff,
-        total_order_value,
         cost_center_code,
-        cost_center_name
+        cost_center_name,
+        SUM(product_quantity * daesang_price) OVER(PARTITION BY order_code) AS total_order_value
     FROM view_data_enrich
-    WHERE total_order_value > 500000
-      AND price_diff <= 2
+    WHERE price_diff <= 2
 ),
+-- Kiểm tra điều kiện MOQ >= 500000vnđ sau khi đã lọc các sản phẩm sai giá
+filter_moq AS (
+    SELECT
+        *
+    FROM filter_price
+    WHERE total_order_value >= 500000
+),
+-- Dựa vào các sản phẩm hợp lệ sau khi lọc MOQ để tạo các dòng sản phẩm tặng kèm
 promotions AS (
     SELECT
          order_index,
@@ -261,7 +268,7 @@ promotions AS (
          branch_name,
          warehouse_code,
          buyer,
-         product_order, -- Cột này tự động kế thừa kiểu INTEGER từ bảng sales
+         product_order,
          NULL AS barcode,
          'P' AS sell_type_name,
          promo_product_code AS product_code,
@@ -269,7 +276,6 @@ promotions AS (
          CASE
              WHEN promo_type_name = 'Mua 1 tặng 1' THEN product_quantity
              WHEN promo_type_name = 'Mua 2 tặng 1' THEN CAST(ROUND(product_quantity / 2.0) AS INT)
-             ELSE NULL
              END AS product_quantity,
          promo_product_code,
          promo_product_name,
@@ -284,15 +290,16 @@ promotions AS (
          total_order_value,
          cost_center_code,
          cost_center_name
-     FROM sales
+     FROM filter_moq
      WHERE promo_product_code IS NOT NULL
  ),
  merged AS (
      SELECT
-         order_index, order_code, provider_code, location_code, location_name, location_address, customer_code, customer_name, branch_name, warehouse_code, buyer, product_order, barcode, sell_type_name, product_code, product_name, product_quantity, promo_product_code, promo_product_name,
+         order_index, order_code, provider_code, location_code, location_name, location_address, customer_code, customer_name,
+         branch_name, warehouse_code, buyer, product_order, barcode, sell_type_name, product_code, product_name, product_quantity, promo_product_code, promo_product_name,
          promo_type_name, source_product_code, order_date, base_price, discount_percentage, daesang_price, winmart_price,
          price_diff, total_order_value, cost_center_code, cost_center_name
-     FROM sales
+     FROM filter_moq
 
      UNION ALL
 
@@ -316,3 +323,43 @@ SELECT
     *
 FROM result
 LIMIT -1;
+
+
+CREATE VIEW view_upload_head AS
+SELECT DISTINCT
+    head AS "Document Key",
+    customer_code AS "Customer",
+    2 AS "Business Place",
+    strftime('%d%m%Y', DATE('now')) AS "Posting Date(ddmmyyyy)",
+    strftime('%d%m%Y', DATE('now')) AS "Due Date(ddmmyyyy)",
+    strftime('%d%m%Y', DATE('now')) AS "Document Date(ddmmyyyy)",
+    NULL AS "Sales Employee",
+    1 AS "Order Type",
+    "S01" AS "Sales Type",
+    NULL AS "Team Code",
+    NULL AS "Branch Code",
+    order_code AS "Remarks",
+    NULL AS "Journal Remark",
+    order_code AS "Customer Ref. No.",
+    NULL AS "Customer Ref. No.1",
+    location_code AS "AddressCode"
+FROM view_data_result;
+
+
+CREATE VIEW view_upload_line AS
+SELECT DISTINCT
+    head AS "Document Key",
+    line AS "Row",
+    sell_type_name AS "Selling Type",
+    product_code AS "Item No.",
+    NULL AS "Unit of Measure",
+    product_quantity AS "UOM Qty",
+    winmart_price AS "Unit Price",
+    NULL AS "Discount %",
+    "A8" AS "Tax Code",
+    warehouse_code AS "Whse",
+    cost_center_code AS "Distr. Rule",
+    NULL AS "G/L Account",
+    NULL AS "COGS Account",
+    source_product_code AS "Source Item"
+FROM view_data_result;
