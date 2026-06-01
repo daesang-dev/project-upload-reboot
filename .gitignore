@@ -3,3 +3,5 @@ database.db
 .idea/
 .vscodes/
 **/__pycache__/
+
+data/raw_order/

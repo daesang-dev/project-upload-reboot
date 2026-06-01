@@ -39,10 +39,10 @@ class DatabaseHandler :
 
                 dfs.append(df_select)
             except Exception as e:
-                print(f"Lỗi khi xử lý file {f.name}: {e}")
+                print(f"\u2717 Lỗi khi xử lý file {f.name}: {e}")
 
         if not dfs:
-            print("Không có dữ liệu hợp lệ để gộp.")
+            print("\u2717 Không có dữ liệu hợp lệ để gộp.")
             return None
 
         combined_df = pd.concat(dfs, ignore_index=True)
@@ -69,9 +69,9 @@ class DatabaseHandler :
                     if_exists="append",
                     index=False
                 )
-            print(f"Tải đơn hàng vào bảng staging thành công")
+            print(f"\u2713 Tải đơn hàng vào bảng staging thành công")
         except Exception as e:
-            print(f"Lỗi khi tải đơn hàng vào bảng staging: {e}")
+            print(f"\u2717 Lỗi khi tải đơn hàng vào bảng staging: {e}")
 
         return None
 
@@ -105,11 +105,11 @@ class DatabaseHandler :
                 conn.executescript(sql)
                 conn.commit()
 
-                print(f"Thực thi file {init_db_script.stem} thành công")
+                print(f"\u2713 Thực thi file {init_db_script.stem} thành công")
 
             except Exception as e:
 
-                print(f"Thông báo lỗi gốc: {e}")
+                print(f"\u2717 Lỗi khi thực thi script {init_db_script}: {e}")
 
                 if hasattr(e, "orig"):
                     print(f"Lỗi chi tiết từ Database: {e.orig}")
@@ -173,11 +173,11 @@ class DatabaseHandler :
                     target_stg, index=False, con=conn, if_exists="append"
                 )
                 conn.commit()
-                print(f"Import thành công bảng {target_stg}!\n")
+                print(f"\u2713 Import thành công bảng {target_stg}!\n")
 
         except Exception as e:
 
-            print(f"LỖI TẠI BẢNG: {target_stg}")
+            print(f"\u2717 LỖI TẠI BẢNG: {target_stg}")
 
             print(f"Thông báo lỗi gốc: {e}")
 
