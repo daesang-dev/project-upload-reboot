@@ -1,1 +1,5 @@
 ~$*.xlsx
+database.db
+.idea/
+.vscodes/
+**/__pycache__/

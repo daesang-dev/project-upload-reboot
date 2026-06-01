@@ -1,4 +1,4 @@
-from src.database_generator import DatabaseHandler
+from src.database_handler import DatabaseHandler
 from pathlib import Path
 from src.conf.column_config import INPUT_CONFIG, ORDER_CONFIG
 
@@ -27,7 +27,8 @@ creator.db_creator()
 # Tạo schema và các view
 creator.sql_executioner(init_db_script=CREATE_SQL_SCRIPT / "create_staging_tables.sql")
 creator.sql_executioner(init_db_script=CREATE_SQL_SCRIPT / "create_main_tables.sql")
-creator.sql_executioner(init_db_script=CREATE_SQL_SCRIPT / "create_views.sql")
+creator.sql_executioner(init_db_script=CREATE_SQL_SCRIPT / "create_result_views.sql")
+creator.sql_executioner(init_db_script=CREATE_SQL_SCRIPT / "create_debug_views.sql")
 
 # Đọc dữ liệu từ file input và import vào các bảng staging
 for stg_table in INPUT_CONFIG.keys():

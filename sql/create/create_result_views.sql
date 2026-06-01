@@ -70,28 +70,6 @@ SELECT
 FROM temp
 ;
 
--- Tạo view báo cáo những barcode chưa map với sản phẩm
-CREATE VIEW view_missing_barcode AS
-SELECT DISTINCT
-    barcode,
-    product_name
-FROM stg_transactions stg
-         LEFT JOIN base_price bp USING (barcode)
-WHERE bp.barcode IS NULL
-  AND stg.barcode IS NOT NULL;
-
-
--- Tạo view báo cáo những mã điểm giao chưa map với mã khách hàng
-CREATE VIEW view_missing_location_code AS
-SELECT DISTINCT
-    stg.location_code,
-    stg.location_name,
-    stg.location_address
-FROM stg_transactions stg
-         LEFT JOIN delivery_location dl USING(location_code)
-WHERE dl.location_code IS NULL
-  AND stg.location_code IS NOT NULL;
-
 
 -- Tạo view data sau khi enrich (chưa thêm sản phẩm khuyến mãi)
 CREATE VIEW view_data_enrich AS
@@ -190,26 +168,6 @@ WITH temp AS (
 FROM temp;
 
 
-CREATE VIEW view_failed_price AS
-WITH failed_price AS (
-    SELECT
-        *
-    FROM view_data_enrich
-    WHERE price_diff > 2
-)
-SELECT * FROM failed_price;
-
-
-CREATE VIEW view_failed_moq AS
-WITH temp AS (
-    SELECT
-        *,
-        SUM(product_quantity * daesang_price) OVER(PARTITION BY order_code) AS total_order_value
-    FROM view_failed_price
-)
-SELECT * FROM temp WHERE total_order_value < 500000;
-
-
 -- View kết quả: Loại bỏ các đơn hàng có tổng giá trị < 500.000vnđ và hiệu số giữa giá winmart và daesang > 2vnđ
 CREATE VIEW view_data_result AS
 WITH filter_price AS (
@@ -300,9 +258,7 @@ promotions AS (
          promo_type_name, source_product_code, order_date, base_price, discount_percentage, daesang_price, winmart_price,
          price_diff, total_order_value, cost_center_code, cost_center_name
      FROM filter_moq
-
      UNION ALL
-
      SELECT
          order_index, order_code, provider_code, location_code, location_name, location_address, customer_code, customer_name, branch_name, warehouse_code, buyer, product_order, barcode, sell_type_name, product_code, product_name, product_quantity,
          NULL AS promo_product_code,
@@ -325,6 +281,7 @@ FROM result
 LIMIT -1;
 
 
+-- Tạo sheet Header của template upload SAP
 CREATE VIEW view_upload_head AS
 SELECT DISTINCT
     head AS "Document Key",
@@ -346,6 +303,7 @@ SELECT DISTINCT
 FROM view_data_result;
 
 
+-- Tạo view Line của template upload SAP
 CREATE VIEW view_upload_line AS
 SELECT DISTINCT
     head AS "Document Key",
