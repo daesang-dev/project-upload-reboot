@@ -282,7 +282,7 @@ LIMIT -1;
 
 
 -- Tạo sheet Header của template upload SAP
-CREATE VIEW view_upload_head AS
+CREATE VIEW view_upload_header AS
 SELECT DISTINCT
     head AS "Document Key",
     customer_code AS "Customer",

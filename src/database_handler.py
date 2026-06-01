@@ -19,10 +19,12 @@ class DatabaseHandler :
         """
 
         if not self.order_path.exists():
+            print("\u2717 Không tìm thấy đường dẫn")
             return None
 
         excel_files = [f for f in self.order_path.glob("*.xlsx") if f.is_file()]
         if not excel_files:
+            print("\u2717 Không tìm thấy file đơn hàng hợp lệ")
             return None
 
         dfs = []
@@ -95,21 +97,31 @@ class DatabaseHandler :
             print("Phát hiện database đã tồn tại, đang xoá...")
             self.db_path.unlink()
 
-    def sql_executioner(self, init_db_script):
+    def sql_executioner(self, sql_script):
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("PRAGMA foreign_key = ON")
             try:
-                with open(init_db_script, "r", encoding="utf-8") as f:
+                # Tắt foreign key constraint trước để dữ liệu từ staging vào bảng chính
+                conn.execute("PRAGMA foreign_keys = OFF;")
+                with open(sql_script, "r", encoding="utf-8") as f:
                     sql = f.read()
 
                 conn.executescript(sql)
                 conn.commit()
 
-                print(f"\u2713 Thực thi file {init_db_script.stem} thành công")
+                # Bật lại foreign key constraint ở bảng chính và check
+                conn.execute("PRAGMA foreign_keys = ON;")
+
+                cursor_check = conn.execute("PRAGMA foreign_key_check;")
+                violations = cursor_check.fetchall()
+                if violations:
+                    for row in violations:
+                        print(f"Bảng {row[0]} dòng {row[1]}")
+
+                print(f"\u2713 Thực thi file {sql_script.stem} thành công")
 
             except Exception as e:
 
-                print(f"\u2717 Lỗi khi thực thi script {init_db_script}: {e}")
+                print(f"\u2717 Lỗi khi thực thi script {sql_script.stem}: {e}")
 
                 if hasattr(e, "orig"):
                     print(f"Lỗi chi tiết từ Database: {e.orig}")
@@ -187,3 +199,15 @@ class DatabaseHandler :
             print("Vị trí dòng code bị crash (Traceback):")
 
             traceback.print_exc()
+
+    def fetch_data(self, table_name):
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cur = conn.cursor()
+                cur.execute(f"SELECT * FROM {table_name}")
+                df = pd.DataFrame(cur.fetchall(), columns= [col[0] for col in cur.description])
+                df_len = len(df)
+                return df, df_len
+
+        except Exception as e:
+            print(f"Gặp lỗi khi lấy dữ liệu từ bảng {table_name}: {e}")

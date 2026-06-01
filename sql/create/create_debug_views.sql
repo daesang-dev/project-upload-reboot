@@ -1,7 +1,7 @@
 -- View này chặn những chuơng trình khuyến mãi trùng khoảng thời gian nhưng khác chương trình (giảm giá, tặng hàng)
 CREATE VIEW view_overlapped_promotions AS WITH temp AS (
     SELECT
-        ROW_NUMBER() OVER() AS row_id,
+        ROW_NUMBER() OVER() + 1 AS row_id,
         LOWER(TRIM(system_name)) AS temp_system_name,
         *
     FROM stg_promotion_detail
@@ -26,7 +26,7 @@ WHERE
 CREATE VIEW view_duplicated_promotions AS
 WITH temp AS (
     SELECT
-        ROW_NUMBER() OVER() AS row_id,
+        ROW_NUMBER() OVER() + 1 AS row_id,
         LOWER(TRIM(system_name)) AS temp_system_name,
         *
     FROM stg_promotion_detail
@@ -74,9 +74,11 @@ WHERE dl.location_code IS NULL
 CREATE VIEW view_failed_price AS
 WITH failed_price AS (
     SELECT DISTINCT
+        order_code,
         barcode,
         product_code,
         product_name,
+        product_quantity,
         base_price,
         discount_percentage,
         daesang_price,
