@@ -1,76 +1,3 @@
--- View customers: Bao gồm tất cả những thông tin liên quan đến khách hàng
--- Bảng này bao gồm các thông tin về mã điểm giao, tên hệ thống (Win/Win+), mã kho, chi nhánh
--- Cột branch_name sẽ phục vụ việc lựa chọn Cost Center
-CREATE VIEW view_location AS
-SELECT
-    dl.location_code,
-    cs.system_name,
-    dl.location_name,
-    dl.location_address,
-    c.customer_code,
-    c.customer_name,
-    w.warehouse_code,
-    b.branch_name,
-    pb.product_brand_name
-FROM delivery_location dl
-    JOIN location_customer lc ON dl.location_code = lc.location_code
-    JOIN customer c ON lc.customer_code = c.customer_code
-    JOIN branch b ON c.branch_key = b.branch_key
-    JOIN product_brand pb ON c.product_brand_key = pb.product_brand_key
-    JOIN customer_system cs on dl.system_key = cs.system_key
-    JOIN warehouse w on c.warehouse_key = w.warehouse_key;
-
-
--- View product: Bao gồm những thông tin liên quan đến sản phẩm
--- Bảng này gồm các thông tin về mã barcode, mã sản phẩm nào ứng với barcode đó, phân nhóm của sản phẩm đó
--- Cột product_category sẽ phục vụ việc lựa chọn Cost Center
-CREATE VIEW view_promotion AS
-WITH temp AS (
-    SELECT
-        pd.barcode,
-        bp.product_code,
-        p.product_name,
-        pc.product_category_name,
-        pb.product_brand_name,
-        pd.post_name,
-        pd.start_date,
-        pd.end_date,
-        bp.base_price,
-        pd.discount_percentage,
-        bp.base_price - (bp.base_price * COALESCE(pd.discount_percentage, 0)) AS discounted_price,
-        pt.promo_type_name,
-        pd.promo_product_code,
-        p2.product_name AS promo_product_name,
-        cs.system_name
-    FROM promotion_detail pd
-             JOIN base_price bp ON pd.barcode = bp.barcode
-             LEFT JOIN customer_system cs ON pd.system_key = cs.system_key OR cs.system_key IS NULL
-             LEFT JOIN product p ON bp.product_code = p.product_code
-             LEFT JOIN product p2 ON pd.promo_product_code = p2.product_code
-             LEFT JOIN product_category pc ON p.product_category_key = pc.product_category_key
-             LEFT JOIN product_brand pb ON pc.product_brand_key = pb.product_brand_key
-             LEFT JOIN promotion_type pt ON pd.promo_type_key = pt.promo_type_key
-)
-SELECT
-    barcode,
-    product_code,
-    product_name,
-    product_category_name,
-    product_brand_name,
-    post_name,
-    start_date,
-    end_date,
-    base_price,
-    discount_percentage,
-    discounted_price AS daesang_price,
-    promo_type_name,
-    promo_product_code,
-    promo_product_name,
-    system_name
-FROM temp
-;
-
-
 -- Tạo view data sau khi enrich (chưa thêm sản phẩm khuyến mãi)
 CREATE VIEW view_data_enrich AS
 WITH temp AS (
@@ -279,6 +206,41 @@ SELECT
     *
 FROM result
 LIMIT -1;
+
+
+-- Tạo view báo cáo những sản phẩm sai giá
+CREATE VIEW view_failed_price AS
+WITH failed_price AS (
+    SELECT DISTINCT
+        order_code,
+        barcode,
+        product_code,
+        product_name,
+        product_quantity,
+        base_price,
+        discount_percentage,
+        daesang_price,
+        winmart_price,
+        price_diff
+    FROM view_data_enrich
+    WHERE price_diff > 2
+)
+SELECT * FROM failed_price;
+
+
+-- Tạo view báo cáo những đơn hàng không đủ MOQ sau khi lọc các sản phẩm sai giá
+CREATE VIEW view_failed_moq AS
+WITH temp AS (
+	SELECT 
+	vde.*,
+	SUM(vde.product_quantity * vde.daesang_price) OVER(PARTITION BY vde.order_code) AS total_order_value
+	FROM view_data_enrich vde
+	LEFT JOIN view_failed_price vfp 
+	ON vde.order_code = vfp.order_code
+	AND vde.product_code = vfp.product_code
+)
+SELECT * FROM temp
+WHERE total_order_value < 500000;
 
 
 -- Tạo sheet Header của template upload SAP

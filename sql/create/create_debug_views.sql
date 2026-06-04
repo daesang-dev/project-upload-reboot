@@ -67,35 +67,4 @@ SELECT DISTINCT
 FROM stg_transactions stg
          LEFT JOIN delivery_location dl USING(location_code)
 WHERE dl.location_code IS NULL
-  AND stg.location_code IS NOT NULL;
-
-
--- Tạo view báo cáo những sản phẩm sai giá
-CREATE VIEW view_failed_price AS
-WITH failed_price AS (
-    SELECT DISTINCT
-        order_code,
-        barcode,
-        product_code,
-        product_name,
-        product_quantity,
-        base_price,
-        discount_percentage,
-        daesang_price,
-        winmart_price,
-        price_diff
-    FROM view_data_enrich
-    WHERE price_diff > 2
-)
-SELECT * FROM failed_price;
-
-
--- Tạo view báo cáo những đơn hàng không đủ MOQ sau khi lọc các sản phẩm sai giá
-CREATE VIEW view_failed_moq AS
-WITH temp AS (
-    SELECT
-        *,
-        SUM(product_quantity * daesang_price) OVER(PARTITION BY order_code) AS total_order_value
-    FROM view_failed_price
-)
-SELECT * FROM temp WHERE total_order_value < 500000;
+  AND stg.location_code IS NOT NULL

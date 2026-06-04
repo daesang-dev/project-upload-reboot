@@ -1,9 +1,11 @@
-import pandas as pd
 import sys, warnings, os, questionary
+from pathlib import Path
+import pandas as pd
+
+from src.conf.column_config import INPUT_CONFIG, ORDER_CONFIG
+from src.utils.dir_handler import file_cleaner, dir_maker
 from src.database_handler import DatabaseHandler
 from src.sap_automator import SAPAutomator
-from pathlib import Path
-from src.conf.column_config import INPUT_CONFIG, ORDER_CONFIG
 
 
 # Ignore specific openpyxl data validation warnings
@@ -17,7 +19,7 @@ except:
 
 DATA_FOLDER = Path(BASE_DIR / "data")
 INPUT_FILE = Path(DATA_FOLDER / "input_winmart.xlsx")
-ORDER_FOLDER = Path(DATA_FOLDER / "raw_order")
+ORDER_FOLDER = Path(DATA_FOLDER / "order")
 
 SQL_SCRIPT = Path(BASE_DIR / "sql")
 CREATE_SQL_SCRIPT = Path(SQL_SCRIPT / "create")
@@ -26,11 +28,10 @@ DB_FILE = Path(BASE_DIR / "database.db")
 
 OUTPUT_FOLDER = Path(BASE_DIR / "output")
 
+
 # Tạo đường dẫn input và output
-for dir_path in [OUTPUT_FOLDER, DATA_FOLDER]:
-    path = Path(dir_path)
-    if not path.exists():
-        path.mkdir(parents=True, exist_ok=True)
+dir_create = [OUTPUT_FOLDER, ORDER_FOLDER]
+dir_maker(dir_create)
         
 # Khởi tạo
 creator = DatabaseHandler(order_path=ORDER_FOLDER, input_path=INPUT_FILE, db_path=DB_FILE)
@@ -130,6 +131,21 @@ with pd.ExcelWriter(OUTPUT_FOLDER / "SAP Upload File.xlsx") as w:
             df[0].to_excel(w, sheet_name="Line", index=False)
 
 sap_upload_file = OUTPUT_FOLDER / "SAP Upload File.xlsx"
+
+def sap_upload():
+    automator = SAPAutomator()
+    if automator.start_sap():
+        if automator.upload_excel(str(sap_upload_file.absolute())):
+            automator.create_sales_order()
+            file_cleaner(OUTPUT_FOLDER)
+            
+        else:
+            print("[LỖI] Không thể upload file lên SAP.")
+    else:
+        print("[LỖI] Không thể khởi động hoặc đăng nhập SAP.")
+
+    return None
+
 if sap_upload_file.is_file():
     print("Tạo file upload thành công")
     
@@ -142,20 +158,24 @@ if sap_upload_file.is_file():
     if choice == 'Xem báo cáo':
         print(f"Đang mở file báo cáo: {OUTPUT_FOLDER / 'Báo cáo.xlsx'}")
         os.startfile(OUTPUT_FOLDER / "Báo cáo.xlsx")
-        sys.exit()
-    
-    elif choice == "Thoát":
+
+        upload_choice = questionary.select(
+            "Bạn có muốn upload luôn không?",
+            choices=['Có', 'Không']
+        ).ask()
+
+        if upload_choice == "Có":
+            file_cleaner(ORDER_FOLDER)
+            sap_upload()
+        else:
+            sys.exit()
+
+    elif choice == "Tiếp tục upload":
+        file_cleaner(ORDER_FOLDER)
+        sap_upload()
+
+    else:
         sys.exit()
     
     # Tích hợp tự động hóa SAP
     print("\n Đang khởi động quy trình tự động hóa SAP")
-    automator = SAPAutomator()
-    if automator.start_sap():
-        # Bước 1: Upload file Excel đã tạo
-        if automator.upload_excel(str(sap_upload_file.absolute())):
-            # Bước 2: Thực hiện tạo Sales Order
-            automator.create_sales_order()
-        else:
-            print("[LỖI] Không thể upload file lên SAP.")
-    else:
-        print("[LỖI] Không thể khởi động hoặc đăng nhập SAP.")
