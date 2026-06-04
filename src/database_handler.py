@@ -13,18 +13,18 @@ class DatabaseHandler :
         self.input_path = Path(input_path)
         self.db_path = Path(db_path)
 
-    def order_importer(self, config,):
+    def order_reader(self, config,):
         """
         Hàm này lặp qua tất cả các file trong thư mục chứa đơn hàng và trả về 1 dataframe
         """
 
         if not self.order_path.exists():
-            print("\u2717 Không tìm thấy đường dẫn")
+            print("\u274c Không tìm thấy đường dẫn")
             return None
 
         excel_files = [f for f in self.order_path.glob("*.xlsx") if f.is_file()]
         if not excel_files:
-            print("\u2717 Không tìm thấy file đơn hàng hợp lệ")
+            print("\u274c Không tìm thấy file đơn hàng hợp lệ")
             return None
 
         dfs = []
@@ -41,10 +41,10 @@ class DatabaseHandler :
 
                 dfs.append(df_select)
             except Exception as e:
-                print(f"\u2717 Lỗi khi xử lý file {f.name}: {e}")
+                print(f"\u274c Lỗi khi xử lý file {f.name}: {e}")
 
         if not dfs:
-            print("\u2717 Không có dữ liệu hợp lệ để gộp.")
+            print("\u274c Không có dữ liệu hợp lệ để gộp.")
             return None
 
         combined_df = pd.concat(dfs, ignore_index=True)
@@ -63,9 +63,12 @@ class DatabaseHandler :
                     combined_df[col] = combined_df[col].astype("string")
                     combined_df[col] = combined_df[col].str.replace(r"\.0$", "", regex=True)
 
+        return combined_df
+
+    def order_importer(self, df):
         try:
             with sqlite3.connect(self.db_path) as conn:
-                combined_df.to_sql(
+                df.to_sql(
                     name="stg_transactions",
                     con=conn,
                     if_exists="append",
@@ -73,7 +76,7 @@ class DatabaseHandler :
                 )
             print(f"\u2713 Tải đơn hàng vào bảng staging thành công")
         except Exception as e:
-            print(f"\u2717 Lỗi khi tải đơn hàng vào bảng staging: {e}")
+            print(f"\u274c Lỗi khi tải đơn hàng vào bảng staging: {e}")
 
         return None
 
@@ -119,7 +122,7 @@ class DatabaseHandler :
                 if violations:
                     foreign_key_violated = True
                     table_violated = set([items[0] for items in violations])
-                    print(f"\u2717 Phát hiện quan hệ giữa các bảng bị lỗi")
+                    print(f"\u274c Phát hiện quan hệ giữa các bảng bị lỗi")
                 else:
                     print(f"\u2713 Thực thi file {sql_script.stem} thành công")
               
@@ -127,7 +130,7 @@ class DatabaseHandler :
 
             except Exception as e:
 
-                print(f"\u2717 Lỗi khi thực thi script {sql_script.stem}: {e}")
+                print(f"\u274c Lỗi khi thực thi script {sql_script.stem}: {e}")
 
                 if hasattr(e, "orig"):
                     print(f"Lỗi chi tiết từ Database: {e.orig}")
@@ -197,7 +200,7 @@ class DatabaseHandler :
 
         except Exception as e:
 
-            print(f"\u2717 LỖI TẠI BẢNG: {target_stg}")
+            print(f"\u274c LỖI TẠI BẢNG: {target_stg}")
 
             print(f"Thông báo lỗi gốc: {e}")
 

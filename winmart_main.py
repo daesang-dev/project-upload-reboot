@@ -12,10 +12,7 @@ from src.sap_automator import SAPAutomator
 warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 
 # Thiết lập đường dẫn
-try:
-    BASE_DIR = Path(__file__).cwd()
-except:
-    BASE_DIR = Path.cwd()
+BASE_DIR = Path(__file__).cwd()
 
 DATA_FOLDER = Path(BASE_DIR / "data")
 INPUT_FILE = Path(DATA_FOLDER / "input_winmart.xlsx")
@@ -59,7 +56,12 @@ for stg_table in INPUT_CONFIG.keys():
 creator.sql_executioner(EXEC_SQL_SCRIPT / "copy_dim_tables.sql")
 
 # Import dữ liệu từ file order vào stg_staging để các view debug trả về dữ liệu lỗi
-creator.order_importer(config=ORDER_CONFIG)
+order_df = creator.order_reader(config=ORDER_CONFIG)
+if order_df:
+    creator.order_importer(order_df)
+else:
+    print("\u274c Vui lòng thêm đơn hàng!")
+    sys.exit()
 
 # Tạo list các sheet chứa thông tin lỗi 
 debug_views = ['view_overlapped_promotions', 'view_duplicated_promotions', 'view_missing_barcode', 'view_missing_location_code']
@@ -82,7 +84,6 @@ with pd.ExcelWriter(OUTPUT_FOLDER / "Báo cáo.xlsx") as w:
 
     # Nếu không có các lỗi trên thì tiếp tục kiểm tra mối quan hệ giữa các bảng 
     else:
-        table_violated = []
         print("Không phát hiện dữ liệu bị thiếu, đang copy dữ liệu đơn hàng từ bảng staging")
         foreign_key_violated, table_violated = creator.sql_executioner(EXEC_SQL_SCRIPT / "copy_transactions_table.sql")
 
