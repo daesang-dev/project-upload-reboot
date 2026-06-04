@@ -98,6 +98,9 @@ class DatabaseHandler :
             self.db_path.unlink()
 
     def sql_executioner(self, sql_script):
+        foreign_key_violated = False
+        table_violated = set()
+
         with sqlite3.connect(self.db_path) as conn:
             try:
                 # Tắt foreign key constraint trước để dữ liệu từ staging vào bảng chính
@@ -114,10 +117,13 @@ class DatabaseHandler :
                 cursor_check = conn.execute("PRAGMA foreign_key_check;")
                 violations = cursor_check.fetchall()
                 if violations:
-                    for row in violations:
-                        print(f"Bảng {row[0]} dòng {row[1]}")
-
-                print(f"\u2713 Thực thi file {sql_script.stem} thành công")
+                    foreign_key_violated = True
+                    table_violated = set([items[0] for items in violations])
+                    print(f"\u2717 Phát hiện quan hệ giữa các bảng bị lỗi")
+                else:
+                    print(f"\u2713 Thực thi file {sql_script.stem} thành công")
+              
+                return foreign_key_violated, table_violated
 
             except Exception as e:
 
@@ -131,6 +137,8 @@ class DatabaseHandler :
                 traceback.print_exc()
 
                 print("-" * 50 + "\n")
+
+                return foreign_key_violated, table_violated
 
 
     def input_importer(self, target_stg: str, config_dict: dict):

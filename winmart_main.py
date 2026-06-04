@@ -1,6 +1,7 @@
 import pandas as pd
-import sys, warnings
+import sys, warnings, os, questionary
 from src.database_handler import DatabaseHandler
+from src.sap_automator import SAPAutomator
 from pathlib import Path
 from src.conf.column_config import INPUT_CONFIG, ORDER_CONFIG
 
@@ -24,9 +25,13 @@ EXEC_SQL_SCRIPT = Path(SQL_SCRIPT / "exec")
 DB_FILE = Path(BASE_DIR / "database.db")
 
 OUTPUT_FOLDER = Path(BASE_DIR / "output")
-ERR_REPORT_FILE = Path(OUTPUT_FOLDER / "Báo cáo.xlsx")
-UPL_SAP_FILE = Path(OUTPUT_FOLDER / "SAP Upload File.xlsx")
 
+# Tạo đường dẫn input và output
+for dir_path in [OUTPUT_FOLDER, DATA_FOLDER]:
+    path = Path(dir_path)
+    if not path.exists():
+        path.mkdir(parents=True, exist_ok=True)
+        
 # Khởi tạo
 creator = DatabaseHandler(order_path=ORDER_FOLDER, input_path=INPUT_FILE, db_path=DB_FILE)
 
@@ -55,31 +60,68 @@ creator.sql_executioner(EXEC_SQL_SCRIPT / "copy_dim_tables.sql")
 # Import dữ liệu từ file order vào stg_staging để các view debug trả về dữ liệu lỗi
 creator.order_importer(config=ORDER_CONFIG)
 
-debug_views = ['view_overlapped_promotions', 'view_duplicated_promotions', 'view_failed_price',
-               'view_failed_moq', 'view_missing_barcode', 'view_missing_location_code']
+# Tạo list các sheet chứa thông tin lỗi 
+debug_views = ['view_overlapped_promotions', 'view_duplicated_promotions', 'view_missing_barcode', 'view_missing_location_code']
 
-# Kiểm tra xem có view debug nào trả lỗi không, nếu không thì tiếp tục import dữ liệu từ file order
+error_data = {}
 has_error = False
-error_sheet = {}
 for view in debug_views:
     df, df_len = creator.fetch_data(view)
     if df_len > 0:
-        error_sheet[view] = df
+        error_data[view] = df
         has_error = True
 
-with pd.ExcelWriter(ERR_REPORT_FILE) as w:
-    if has_error:
-        for view, df in error_sheet.items():
+# Tạo file báo cáo
+with pd.ExcelWriter(OUTPUT_FOLDER / "Báo cáo.xlsx") as w:
+    # Nếu có lỗi thì ghi các view debug và dữ liệu của chúng ra file (chỉ những view nào có len > 0)
+    if has_error and len(error_data) > 0:
+        print("Phát hiện thông tin bị thiếu đang ghi vào file kết quả")
+        for view, df in error_data.items():
             df.to_excel(w, sheet_name=view[:30], index=False)
-        sys.exit()
+
+    # Nếu không có các lỗi trên thì tiếp tục kiểm tra mối quan hệ giữa các bảng 
     else:
-        creator.sql_executioner(EXEC_SQL_SCRIPT / "copy_transactions_table.sql")
-        df = creator.fetch_data("view_data_result")
-        df[0].to_excel(w, sheet_name="view_data_result", index=False)
+        table_violated = []
+        print("Không phát hiện dữ liệu bị thiếu, đang copy dữ liệu đơn hàng từ bảng staging")
+        foreign_key_violated, table_violated = creator.sql_executioner(EXEC_SQL_SCRIPT / "copy_transactions_table.sql")
+
+        if foreign_key_violated:
+            print(f"Mối quan hệ bị hỏng tại các bảng sau: {', '.join(table_violated)}")
+
+            df_fk_errors = pd.DataFrame({"Bảng bị lỗi liên kết": table_violated})
+            df_fk_errors.to_excel(w, sheet_name="FK_Violations", index=False)
+
+        else:
+            print("Các mối quan hệ trong database đều ổn, đang ghi kết quả vào file...")
+
+            # Tạo list các sheet chứa kết quả
+            result_views = ['view_failed_price', 'view_failed_moq', 'view_data_result']
+
+            # Fetch dữ liệu từ các view kết quả 
+            result_data = {}
+            for view in result_views:
+                df, df_len = creator.fetch_data(view)
+                if df_len > 0:
+                    result_data[view] = df
+
+            for view, df in result_data.items():
+                df.to_excel(w, sheet_name=view[:30], index=False)
+
+if has_error or foreign_key_violated:
+    print("\n[LỖI] Phát hiện lỗi dữ liệu! Vui lòng kiểm tra báo cáo.")
+    answer = questionary.select(
+        "Bạn muốn làm gì?",
+        choices=['Xem báo cáo lỗi', 'Thoát']
+    ).ask()
+    
+    if answer == 'Xem báo cáo lỗi':
+        os.startfile(OUTPUT_FOLDER / "Báo cáo.xlsx")
+    sys.exit()
 
 # Sau khi import thành công dữ liệu đơn hàng vào bảng chính thì tạo file upload từ các view Header và line
+
 upload_views = ['view_upload_header', 'view_upload_line']
-with pd.ExcelWriter(UPL_SAP_FILE) as w:
+with pd.ExcelWriter(OUTPUT_FOLDER / "SAP Upload File.xlsx") as w:
     for view in upload_views:
         df = creator.fetch_data(view)
         if 'header' in view:
@@ -87,5 +129,33 @@ with pd.ExcelWriter(UPL_SAP_FILE) as w:
         else:
             df[0].to_excel(w, sheet_name="Line", index=False)
 
-if UPL_SAP_FILE.is_file():
+sap_upload_file = OUTPUT_FOLDER / "SAP Upload File.xlsx"
+if sap_upload_file.is_file():
     print("Tạo file upload thành công")
+    
+    # Lựa chọn bước tiếp theo
+    choice = questionary.select(
+        "Bạn muốn làm gì tiếp theo?",
+        choices=['Xem báo cáo', 'Tiếp tục upload', 'Thoát']
+    ).ask()
+
+    if choice == 'Xem báo cáo':
+        print(f"Đang mở file báo cáo: {OUTPUT_FOLDER / 'Báo cáo.xlsx'}")
+        os.startfile(OUTPUT_FOLDER / "Báo cáo.xlsx")
+        sys.exit()
+    
+    elif choice == "Thoát":
+        sys.exit()
+    
+    # Tích hợp tự động hóa SAP
+    print("\n Đang khởi động quy trình tự động hóa SAP")
+    automator = SAPAutomator()
+    if automator.start_sap():
+        # Bước 1: Upload file Excel đã tạo
+        if automator.upload_excel(str(sap_upload_file.absolute())):
+            # Bước 2: Thực hiện tạo Sales Order
+            automator.create_sales_order()
+        else:
+            print("[LỖI] Không thể upload file lên SAP.")
+    else:
+        print("[LỖI] Không thể khởi động hoặc đăng nhập SAP.")

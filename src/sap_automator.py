@@ -14,8 +14,8 @@ SAP_CONFIG = {
         "process_name": "SAP Business One.exe",
     },
     "credentials": {
-        "username": "dsvn55",
-        "password": "Dsvn@6026"
+        "username": "dsvn57",
+        "password": "Dsvn@1427"
     },
     "coords": {
         "posting_date": (644 - 530, 312 - 236),
@@ -240,9 +240,8 @@ class SAPAutomator:
             print(f"Lỗi quy trình Upload: {e}")
         return False
 
-    def create_sales_order(self, posting_date=None):
-        """Quy trình Create Sales Order (Sử dụng State Machine 100% từ file test)."""
-        print("\n=== BẮT ĐẦU QUY TRÌNH 2: CREATE SALES ORDER ===")
+    def fill_create_info(self, posting_date=None):
+        """Mở cửa sổ Create Sales Order và điền thông tin ngày, user."""
         try:
             create_win = self._open_function_window(self.config['windows']['create_window'])
             time.sleep(5)
@@ -259,9 +258,18 @@ class SAPAutomator:
             
             time.sleep(1)
             self._check_and_skip_message()
+            return create_win
+        except Exception as e:
+            print(f"Lỗi khi điền thông tin: {e}")
+            return None
 
-            # --- KÍCH HOẠT STATE MACHINE (Khớp hoàn toàn file test) ---
-            print("\n--- KÍCH HOẠT STATE MACHINE CHO CREATE ---")
+    def execute_create_order(self, create_win):
+        """Thực hiện quy trình State Machine để tạo đơn hàng."""
+        if not create_win:
+            return False
+        
+        print("\n--- KÍCH HOẠT STATE MACHINE CHO CREATE ---")
+        try:
             current_step = 3 
             max_retries = 100 
             attempts = 0
@@ -370,7 +378,15 @@ class SAPAutomator:
             
             return False
         except Exception as e:
-            print(f"Lỗi quy trình Create: {e}")
+            print(f"Lỗi quy trình thực thi Create: {e}")
+            return False
+
+    def create_sales_order(self, posting_date=None):
+        """Quy trình Create Sales Order (Gộp 2 bước)."""
+        print("\n=== BẮT ĐẦU QUY TRÌNH 2: CREATE SALES ORDER ===")
+        create_win = self.fill_create_info(posting_date)
+        if create_win:
+            return self.execute_create_order(create_win)
         return False
 
 if __name__ == "__main__":
