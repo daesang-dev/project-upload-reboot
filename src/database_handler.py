@@ -58,7 +58,7 @@ class DatabaseHandler :
                 if dtype == "date":
                     combined_df[col] = pd.to_datetime(combined_df[col], errors='raise')
                 elif dtype == "decimal":
-                    combined_df[col] = pd.to_numeric(combined_df[col], errors='coerce')
+                    combined_df[col] = pd.to_numeric(combined_df[col], errors='raise')
                 else:
                     combined_df[col] = combined_df[col].astype("string")
                     combined_df[col] = combined_df[col].str.replace(r"\.0$", "", regex=True)
