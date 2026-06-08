@@ -20,7 +20,7 @@ SAP_CONFIG = {
     "coords": {
         "posting_date": (644 - 530, 312 - 236),
         "user_name": (633 - 530, 327 - 236),
-        "btn_check": (580 - 530, 377 - 236),
+        "btn_check": (580 + 20 - 530, 377 - 236),
         "btn_create": (1140 - 530, 769 - 236),
         "offset_region": (32, 175, 1030, 333),
         "import_btn": (662, 499)
@@ -254,7 +254,7 @@ class SAPAutomator:
             create_win.type_keys("^a{BACKSPACE}" + posting_date, with_spaces=True)
             time.sleep(1)
             create_win.click_input(coords=self.config['coords']['user_name'])
-            create_win.type_keys("^a{BACKSPACE}" + self.config['credentials']['username'] + "{ENTER}", with_spaces=True)
+            create_win.type_keys("^a{BACKSPACE}" + self.config['credentials']['username'], with_spaces=True)
             
             time.sleep(1)
             self._check_and_skip_message()
