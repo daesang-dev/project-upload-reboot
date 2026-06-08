@@ -7,12 +7,12 @@ if %errorLevel% == 0 (
     goto :run_script
 ) else (
     echo [INFO] Dang yeu cau quyen Administrator...
-    powershell -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+    powershell -Command "Start-Process cmd -ArgumentList '/k \"""%~f0\"""' -Verb RunAs"
     exit /b
 )
 
 :run_script
-:: Chuyển về đúng thư mục chứa file .bat này (Rất quan trọng khi chạy quyền Admin)
+:: Chuyển về đúng thư mục chứa file .bat này
 cd /d "%~dp0"
 
 SET "PY_FILE=winmart_main.py"
@@ -36,8 +36,8 @@ echo [OK] Da tim thay .venv hop le.
 echo [2/2] Dang chay script bang Python cua moi truong '.venv'...
 echo ------------------------------------------------------------------
 
-:: Chạy trực tiếp file python của môi trường .venv
-"!ENV_PYTHON_EXE!" "%PY_FILE%"
+:: Chạy trực tiếp file python bằng đường dẫn tuyệt đối
+"!ENV_PYTHON_EXE!" "%~dp0%PY_FILE%"
 
 if %errorlevel% neq 0 (
     echo.
