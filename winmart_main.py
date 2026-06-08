@@ -57,17 +57,18 @@ creator.sql_executioner(EXEC_SQL_SCRIPT / "copy_dim_tables.sql")
 
 # Import dữ liệu từ file order vào stg_staging để các view debug trả về dữ liệu lỗi
 order_df = creator.order_reader(config=ORDER_CONFIG)
-if order_df:
-    creator.order_importer(order_df)
-else:
-    print("\u274c Vui lòng thêm đơn hàng!")
+if order_df.empty:
+    print("\u274c Kiểm tra lại thư mục đơn hàng")
     sys.exit()
+else:
+    creator.order_importer(order_df)
 
 # Tạo list các sheet chứa thông tin lỗi 
 debug_views = ['view_overlapped_promotions', 'view_duplicated_promotions', 'view_missing_barcode', 'view_missing_location_code']
 
 error_data = {}
 has_error = False
+has_foreign_key_error = False
 for view in debug_views:
     df, df_len = creator.fetch_data(view)
     if df_len > 0:
@@ -75,41 +76,46 @@ for view in debug_views:
         has_error = True
 
 # Tạo file báo cáo
-with pd.ExcelWriter(OUTPUT_FOLDER / "Báo cáo.xlsx") as w:
-    # Nếu có lỗi thì ghi các view debug và dữ liệu của chúng ra file (chỉ những view nào có len > 0)
-    if has_error and len(error_data) > 0:
-        print("Phát hiện thông tin bị thiếu đang ghi vào file kết quả")
-        for view, df in error_data.items():
-            df.to_excel(w, sheet_name=view[:30], index=False)
-
-    # Nếu không có các lỗi trên thì tiếp tục kiểm tra mối quan hệ giữa các bảng 
-    else:
-        print("Không phát hiện dữ liệu bị thiếu, đang copy dữ liệu đơn hàng từ bảng staging")
-        foreign_key_violated, table_violated = creator.sql_executioner(EXEC_SQL_SCRIPT / "copy_transactions_table.sql")
-
-        if foreign_key_violated:
-            print(f"Mối quan hệ bị hỏng tại các bảng sau: {', '.join(table_violated)}")
-
-            df_fk_errors = pd.DataFrame({"Bảng bị lỗi liên kết": table_violated})
-            df_fk_errors.to_excel(w, sheet_name="FK_Violations", index=False)
-
-        else:
-            print("Các mối quan hệ trong database đều ổn, đang ghi kết quả vào file...")
-
-            # Tạo list các sheet chứa kết quả
-            result_views = ['view_failed_price', 'view_failed_moq', 'view_data_result']
-
-            # Fetch dữ liệu từ các view kết quả 
-            result_data = {}
-            for view in result_views:
-                df, df_len = creator.fetch_data(view)
-                if df_len > 0:
-                    result_data[view] = df
-
-            for view, df in result_data.items():
+try:
+    with pd.ExcelWriter(OUTPUT_FOLDER / "Báo cáo.xlsx") as w:
+        # Nếu có lỗi thì ghi các view debug và dữ liệu của chúng ra file (chỉ những view nào có len > 0)
+        if has_error and len(error_data) > 0:
+            print("Phát hiện thông tin bị thiếu đang ghi vào file kết quả")
+            for view, df in error_data.items():
                 df.to_excel(w, sheet_name=view[:30], index=False)
 
-if has_error or foreign_key_violated:
+        # Nếu không có các lỗi trên thì tiếp tục kiểm tra mối quan hệ giữa các bảng 
+        else:
+            print("Không phát hiện dữ liệu bị thiếu, đang copy dữ liệu đơn hàng từ bảng staging")
+            foreign_key_violated, table_violated = creator.sql_executioner(EXEC_SQL_SCRIPT / "copy_transactions_table.sql")
+
+            if foreign_key_violated:
+                has_foreign_key_error = True
+                print(f"Mối quan hệ bị hỏng tại các bảng sau: {', '.join(table_violated)}")
+
+                df_fk_errors = pd.DataFrame({"Bảng bị lỗi liên kết": table_violated})
+                df_fk_errors.to_excel(w, sheet_name="foreign_key_violations", index=False)
+
+            else:
+                print("Các mối quan hệ trong database đều ổn, đang ghi kết quả vào file...")
+
+                # Tạo list các sheet chứa kết quả
+                result_views = ['view_failed_price', 'view_failed_moq', 'view_data_result']
+
+                # Fetch dữ liệu từ các view kết quả 
+                result_data = {}
+                for view in result_views:
+                    df, df_len = creator.fetch_data(view)
+                    if df_len > 0:
+                        result_data[view] = df
+
+                for view, df in result_data.items():
+                    df.to_excel(w, sheet_name=view[:30], index=False)
+
+except PermissionError:
+    print("\u274c Lỗi khi tạo file báo cáo, bạn phải đóng file cũ trước")
+
+if has_error or has_foreign_key_error:
     print("\n[LỖI] Phát hiện lỗi dữ liệu! Vui lòng kiểm tra báo cáo.")
     answer = questionary.select(
         "Bạn muốn làm gì?",

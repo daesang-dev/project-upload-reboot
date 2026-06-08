@@ -20,12 +20,13 @@ class DatabaseHandler :
 
         if not self.order_path.exists():
             print("\u274c Không tìm thấy đường dẫn")
-            return None
+            return pd.DataFrame()
 
         excel_files = [f for f in self.order_path.glob("*.xlsx") if f.is_file()]
         if not excel_files:
             print("\u274c Không tìm thấy file đơn hàng hợp lệ")
-            return None
+            return pd.DataFrame() 
+
 
         dfs = []
         rename_dict = {v['keywords'][0]: k for k, v in config.items() if v.get('use') == True}
@@ -45,7 +46,7 @@ class DatabaseHandler :
 
         if not dfs:
             print("\u274c Không có dữ liệu hợp lệ để gộp.")
-            return None
+            return pd.DataFrame() 
 
         combined_df = pd.concat(dfs, ignore_index=True)
 
