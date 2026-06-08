@@ -238,6 +238,7 @@ WITH temp AS (
 	LEFT JOIN view_failed_price vfp 
 	ON vde.order_code = vfp.order_code
 	AND vde.product_code = vfp.product_code
+	WHERE vfp.product_code IS NULL
 )
 SELECT * FROM temp
 WHERE total_order_value < 500000;
