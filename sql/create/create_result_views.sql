@@ -131,6 +131,7 @@ WITH filter_price AS (
         SUM(product_quantity * daesang_price) OVER(PARTITION BY order_code) AS total_order_value
     FROM view_data_enrich
     WHERE price_diff <= 2
+    AND product_quantity > 0
 ),
 -- Kiểm tra điều kiện MOQ >= 500000vnđ sau khi đã lọc các sản phẩm sai giá
 filter_moq AS (
@@ -224,6 +225,7 @@ WITH failed_price AS (
         price_diff
     FROM view_data_enrich
     WHERE price_diff > 2
+    AND product_quantity <= 0
 )
 SELECT * FROM failed_price;
 
