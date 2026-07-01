@@ -296,7 +296,7 @@ class SAPAutomator:
                         print(">>> Đang đợi hệ thống xử lý xong Checkbox (Đợi ổn định)...")
                         time.sleep(0.5) 
                         # Tham số khắt khe: timeout 120, stability 3.0
-                        if self._wait_for_pixel_stability(create_win, self.config['coords']['offset_region'], interval=0.3, timeout=120, stability_time=3.0):
+                        if self._wait_for_pixel_stability(create_win, self.config['coords']['offset_region'], interval=0.3, timeout=300, stability_time=10.0):
                             print(">>> Dữ liệu đã ổn định hoàn toàn. Chuẩn bị sang Bước 4.")
                             time.sleep(5)
                             current_step = 4
