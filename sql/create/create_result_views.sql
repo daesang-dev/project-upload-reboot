@@ -225,7 +225,7 @@ WITH failed_price AS (
         price_diff
     FROM view_data_enrich
     WHERE price_diff > 2
-    AND product_quantity <= 0
+    OR product_quantity <= 0
 )
 SELECT * FROM failed_price;
 
