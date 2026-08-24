@@ -16,37 +16,32 @@ if %errorLevel% == 0 (
 cd /d "%~dp0"
 
 SET "PY_FILE=run_only_create.py"
-SET "VENV_DIR=.venv"
 
-echo [1/2] Dang kiem tra moi truong ao (.venv)...
-
-:: Xác định đường dẫn trực tiếp đến file python.exe của thư mục .venv cùng cấp
-SET "ENV_PYTHON_EXE=%~dp0%VENV_DIR%\Scripts\python.exe"
-
-IF NOT EXIST "!ENV_PYTHON_EXE!" (
-    echo [LOI] Khong the tim thay moi truong '.venv' tai: !ENV_PYTHON_EXE!
-    echo Vui long dam bao ban da tao moi truong ao bang lenh: 
-    echo python -m venv %VENV_DIR%
-    echo Hoac dam bao file .bat nay dat dung canh thu muc %VENV_DIR%
+echo [1/2] Dang kiem tra cong cu UV...
+:: Kiểm tra xem UV đã được cài đặt trên máy chưa
+where uv >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [LOI] Khong tim thay 'uv' tren he thong.
+    echo Vui long cai dat uv bang lenh: powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
     pause
     exit /b
 )
 
-echo [OK] Da tim thay .venv hop le.
-echo [2/2] Dang chay script bang Python cua moi truong '.venv'...
+echo [OK] Da tim thay UV.
+echo [2/2] Dang chay script bang UV...
 echo ------------------------------------------------------------------
 
-:: Chạy trực tiếp file python bằng đường dẫn tuyệt đối
-"!ENV_PYTHON_EXE!" "%~dp0%PY_FILE%"
+:: Lệnh 'uv run' sẽ tự động kích hoạt/tạo môi trường ảo và chạy file python
+uv run python "%~dp0%PY_FILE%"
 
 if %errorlevel% neq 0 (
     echo.
     echo ------------------------------------------------------------------
-    echo [LOI] Co loi xay ra trong qua trinh thuc thi script Python (Ma loi: %errorlevel%).
+    echo [LOI] Co loi xay ra trong qua trinh thuc thi bằng UV (Ma loi: %errorlevel%).
 ) else (
     echo.
     echo ------------------------------------------------------------------
-    echo [THANH CONG] Pipeline da hoan thanh xu ly.
+    echo [THANH CONG] Pipeline da hoan thanh xu ly bang UV.
 )
 
 ENDLOCAL
