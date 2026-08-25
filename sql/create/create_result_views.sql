@@ -7,6 +7,7 @@ WITH temp AS (
         t.provider_code,
         t.location_code,
         t.location_name,
+        cs.system_name,
         t.location_address,
         c.customer_code,
         c.customer_name,
@@ -39,6 +40,7 @@ WITH temp AS (
 
         -- Bước 2: Từ điểm giao, tìm Khách hàng thỏa mãn: Phải cùng điểm giao VÀ Khách hàng đó phải quản lý Nhãn hàng của sản phẩm
         JOIN delivery_location dl ON t.location_code = dl.location_code
+        JOIN customer_system cs ON dl.system_key = cs.system_key
         JOIN location_customer lc ON dl.location_code = lc.location_code
         JOIN customer c ON lc.customer_code = c.customer_code
         -- LỌC CHÍNH TẠI ĐÂY: Chỉ chọn khách hàng có brand_key khớp với brand_key của sản phẩm
@@ -73,6 +75,7 @@ WITH temp AS (
         location_address,
         customer_code,
         customer_name,
+        system_name,
         branch_name,
         warehouse_code,
         buyer,
@@ -104,6 +107,7 @@ WITH filter_price AS (
         provider_code,
         location_code,
         location_name,
+        system_name,
         location_address,
         customer_code,
         customer_name,
@@ -138,7 +142,7 @@ filter_moq AS (
     SELECT
         *
     FROM filter_price
-    WHERE total_order_value >= 500000
+    WHERE total_order_value >= 000000
 ),
 -- Dựa vào các sản phẩm hợp lệ sau khi lọc MOQ để tạo các dòng sản phẩm tặng kèm
 promotions AS (
@@ -215,9 +219,9 @@ WITH failed_price AS (
     SELECT DISTINCT
         order_code,
         barcode,
+        system_name,
         product_code,
         product_name,
-        product_quantity,
         base_price,
         discount_percentage,
         daesang_price,
@@ -243,7 +247,7 @@ WITH temp AS (
 	WHERE vfp.product_code IS NULL
 )
 SELECT * FROM temp
-WHERE total_order_value < 500000;
+WHERE total_order_value < 000000;
 
 
 -- Tạo sheet Header của template upload SAP
