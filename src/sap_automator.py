@@ -46,7 +46,6 @@ class SAPAutomator:
             rect.left + offset_region[0], rect.top + offset_region[1], 
             rect.left + offset_region[2], rect.top + offset_region[3]
         )
-        print(f"--- Đang theo dõi thay đổi (interval={interval}s) tại: {abs_region} ---")
         
         img_original = ImageGrab.grab(bbox=abs_region)
         start_time = time.time()
@@ -114,16 +113,13 @@ class SAPAutomator:
         return message_handled
 
     def _get_status_state(self, x=1690, y=1020):
-        """Logic từ file test: Kiểm tra màu status bar với Debug RGB."""
         try:
             r, g, b = pyautogui.pixel(x, y)
-            print(f"   [Debug Pixel] Tại ({x}, {y}) mã màu đang là: RGB({r}, {g}, {b})")
             
             if r > 180 and g < 50 and b < 50: 
                 return "RED"
             
             if g > 150 and r < 150 and b < 150 and (g - r) > 30 and (g - b) > 30:
-                print(f"   >>> KÍCH HOẠT XANH VÌ RGB({r}, {g}, {b}) THỎA MÃN ĐIỀU KIỆN!")
                 return "GREEN"
             
             return "NORMAL"
@@ -156,10 +152,7 @@ class SAPAutomator:
             login_keys = f"{self.config['credentials']['username']}{{TAB}}{self.config['credentials']['password']}{{ENTER}}"
             login_dialog.Edit0.type_keys(login_keys, with_spaces=True)
             
-            # --- ĐOẠN CODE QUAN TRỌNG: Chờ đối tượng Miwon xuất hiện (Timeout 240s) ---
-            print(">>> Đang chờ đăng nhập thành công (Cửa sổ Miwon)...")
             self.win.child_window(title="Miwon", class_name="TMMDIChildClass").wait('exists', timeout=240)
-            print(">>> Đăng nhập thành công!")
             return True
         except Exception as e:
             print(f"Lỗi khởi động SAP: {e}")
@@ -189,8 +182,6 @@ class SAPAutomator:
         return target_win
 
     def upload_excel(self, file_path):
-        """Quy trình Upload file Excel (Cập nhật timeout và các bước xác nhận)."""
-        print(f"\n=== BẮT ĐẦU QUY TRÌNH 1: UPLOAD FILE EXCEL: {file_path} ===")
         try:
             upload_win = self._open_function_window(self.config['windows']['upload_window'])
             time.sleep(2)
@@ -199,29 +190,25 @@ class SAPAutomator:
             path_edit.click_input()
             time.sleep(1)
 
-            print(f"Đang gõ đường dẫn: {file_path}")
             path_edit.type_keys(file_path, with_spaces=True, pause=0.05)
             time.sleep(2)
 
-            print(f"Đang nhấn nút Import tại {self.config['coords']['import_btn']}...")
             upload_win.click_input(coords=self.config['coords']['import_btn'])
             
             self._wait_for_pixel_change(upload_win, self.config['coords']['offset_region'], interval=1.0, timeout=20)
             
-            # Kiểm tra popup xác nhận upload hiện lên 
             wait_start = time.time()
-            popup_handled = False
+            upload_confirm = False
             while time.time() - wait_start < 30: # Timeout 30s
                 if self._check_and_skip_message():
-                    popup_handled = True
+                    upload_confirm = True
                     break
+                time.sleep(0.5)
             
-            if not popup_handled:
-                print(">>> Không thấy System Message, tự động nhấn ENTER để tiếp tục...")
+            if not upload_confirm:
                 upload_win.type_keys("{ENTER}")
 
-            # Kiểm tra dữ liệu được hiển thị ở bảng
-            if self._wait_for_pixel_change(upload_win, self.config['coords']['offset_region'], interval=1.5, timeout=60):
+            if self._wait_for_pixel_change(upload_win, self.config['coords']['offset_region'], interval=1.5, timeout=40):
                 time.sleep(3)
                 upload_win.type_keys("{ENTER}")
                 time.sleep(3)
@@ -229,15 +216,14 @@ class SAPAutomator:
                 time.sleep(2)
                 upload_win.type_keys("{ESC}")
                 return True
+            else:
+                print("!!! Lỗi Upload: Dữ liệu không load.")
         except Exception as e:
-            print(f"Lỗi khi thực hiện upload excel: {e}")
+            print(f"Lỗi quy trình Upload: {e}")
         return False
 
     def fill_create_info(self, posting_date=None):
-        """
-        Mở cửa sổ Sales Order Create và điền các thông tin user và ngày làm đơn
-        """
-        
+        """Mở cửa sổ Create Sales Order và điền thông tin ngày, user."""
         try:
             create_win = self._open_function_window(self.config['windows']['create_window'])
             time.sleep(5)
@@ -260,39 +246,34 @@ class SAPAutomator:
             return None
 
     def execute_create_order(self, create_win):
-        """Thực hiện quy trình State Machine để tạo đơn hàng."""
         if not create_win:
             return False
         
         try:
-            # Nhấn Enter (=Find) để tìm kiếm dữ liệu
             current_step = 3 
             max_retries = 100 
             attempts = 0
 
             while attempts < max_retries:
                 if current_step == 3:
-                    time.sleep(2)
-                    # Nhấn Enter (nút tìm kiếm)
+                    time.sleep(3)
                     create_win.set_focus()
                     create_win.type_keys("{ENTER}") 
-                    time.sleep(2)
                     
-                    # Sau khi nút tìm kiếm được nhấn, chờ vùng hiển thị dữ liệu thay đổi
-                    # Trường hợp 1: Phát hiện vùng theo dõi thay đổi (có dữ liệu)
                     if self._wait_for_pixel_change(create_win, self.config['coords']['offset_region'], interval=1.2, timeout=25):
-                       # Nhấn vào checkbox để chọn toàn bộ đơn hàng đang hiển thị
+                        time.sleep(1)
+                        pyautogui.moveTo(500, 500, duration=0.5)
+                        pyautogui.moveRel(0, 10, duration=0.5)
+                        time.sleep(1)
+                        
                         create_win.click_input(coords=self.config['coords']['btn_check'])
                         
                         time.sleep(0.5) 
-
-                        # Chờ cho checkbox của bảng hiển thị đơn hàng chạy xong (bảng không còn nhấp nháy/thay đổi dữ liệu)
                         if self._wait_for_pixel_stability(create_win, self.config['coords']['offset_region'], interval=0.3, timeout=300, stability_time=10.0):
                             time.sleep(5)
                             current_step = 4
                         else:
-                            print("Quá thời gian chờ!")
-                            return
+                            attempts += 1; continue
                     else:
                         self._check_and_skip_message()
                         attempts += 1; continue
@@ -300,43 +281,40 @@ class SAPAutomator:
                 if current_step == 4:
                     create_win.set_focus()
                     time.sleep(0.5)
-                    # Nhấn nút tạo đơn hàng
                     create_win.click_input(coords=self.config['coords']['btn_create'])
 
-                    popup_handled = False
+                    create_order_confirm = False
                     retry_done = False
                     wait_popup_start = time.time()
-
-                    # Trong vòng 500 giây kể từ khi ấn nút tạo đơn hàng, kiểm tra xem popup (system message) có hiện lên không
                     while time.time() - wait_popup_start < 500: 
                         if self._check_and_skip_message():
-                            popup_handled = True
+                            create_order_confirm = True
                             break
                         
-                        # Nếu sau 50 giây popup xác nhận không hiện lên thì ấn tạo lại đơn hàng
-                        if not retry_done and (time.time() - wait_popup_start > 50):
+                        # Logic Retry: Nếu quá 100s chưa thấy popup, thử nhấn Create lại lần nữa
+                        if not retry_done and (time.time() - wait_popup_start > 100):
                             create_win.set_focus()
                             create_win.click_input(coords=self.config['coords']['btn_create'])
-                            print("Quá thời gian chờ, nhấn lại nút tạo lại đơn hàng")
                             retry_done = True
 
                         time.sleep(0.5)
                     
-                    # Trường hợp không có popup xác nhận tạo đơn hiện lên sau 500 giây thì chương trình bị huỷ
-                    if not popup_handled:
-                        print("Không phát hiện popup xác nhận tạo đơn hàng, huỷ chương trình...")
-                        return
+                    if not create_order_confirm:
+                        print("Không thấp popup xác nhận tạo đơn hàng xuất hiện")
 
-                    # Bắt đầu theo dõi sau khi popup tạo đơn được xác nhận
                     monitoring_start = time.time()
                     while time.time() - monitoring_start < 800:
-                        # Trường hợp phát hiện popup (system message) báo lỗi
-                        if self._check_and_skip_message() or self._get_status_state() == "RED":
+                        if self._check_and_skip_message():
+                            current_step = 3; attempts += 1; break
+
+                        status_color = self._get_status_state()
+                        if status_color == "RED":
+                            time.sleep(2)
                             current_step = 3; attempts += 1; break
 
                         time.sleep(0.5)
                     else:
-                        print("Không phát hiện thay đổi khi nhấn Create, quay lại bước tìm kiếm...")
+                        print("!!! Quá thời gian chờ phản hồi sau khi nhấn Create.")
                         current_step = 3; attempts += 1
             
             return False
@@ -345,6 +323,8 @@ class SAPAutomator:
             return False
 
     def create_sales_order(self, posting_date=None):
+        """Quy trình Create Sales Order (Gộp 2 bước)."""
+        print("\n=== BẮT ĐẦU QUY TRÌNH 2: CREATE SALES ORDER ===")
         create_win = self.fill_create_info(posting_date)
         if create_win:
             return self.execute_create_order(create_win)
