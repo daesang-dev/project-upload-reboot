@@ -14,7 +14,7 @@ def run_standalone_create():
         automator.app = Application(backend="win32").connect(path=automator.config['app']['path'], timeout=20)
         
         # Lấy cửa sổ top-level có tiêu đề chứa "SAP Business One"
-        automator.win = automator.app.window(title_re=".*SAP Business One.*", found_index=0)
+        automator.win = automator.app.window(title_re=".*Công ty TNHH Daesang.*", found_index=0)
         automator.win.set_focus()
         print(">>> Đã kết nối thành công với SAP Business One.")
 
@@ -23,7 +23,7 @@ def run_standalone_create():
         print(f">>> Đang tìm cửa sổ: {window_name}...")
         
         # Thử tìm cửa sổ con (MDI Child)
-        create_win = automator.win.child_window(title_re=f".*{window_name}.*", class_name="TMMDIChildClass")
+        create_win = automator.win.child_window(title_re=f".*{window_name}.*", class_name="TMMDIChildClass", found_index=0)
         
         if not create_win.exists():
             print(f"[LỖI] Không tìm thấy cửa sổ '{window_name}'.")
